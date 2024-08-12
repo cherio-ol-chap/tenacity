@@ -20,7 +20,7 @@
 #include "CommandSignature.h"
 #include "../commands/AudacityCommand.h"
 
-class AudacityApp;
+class TenacityApp;
 class CommandContext;
 class CommandOutputTargets;
 
@@ -72,7 +72,7 @@ public:
 
 };
 
-class AUDACITY_DLL_API CommandImplementation /* not final */
+class TENACITY_DLL_API CommandImplementation /* not final */
    : public OldStyleCommand
 {
 private:

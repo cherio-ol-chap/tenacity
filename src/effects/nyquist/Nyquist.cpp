@@ -2239,7 +2239,7 @@ bool NyquistEffect::Parse(
                //       wxOK | wxICON_EXCLAMATION,
                //       XO("Nyquist Warning") );
 
-               // Note that the AudacityApp's mLogger has not yet been created,
+               // Note that the TenacityApp's mLogger has not yet been created,
                // so this brings up an alert box, but after the Audacity frame is up.
                wxLogWarning(str);
                return true;
@@ -3435,18 +3435,6 @@ void * nyq_make_opaque_string( int size, unsigned char *src ){
     *dstp = '\0';
 
     return (void*)dst;
-}
-
-void * nyq_reformat_aud_do_response(const wxString & Str) {
-   LVAL dst;
-   LVAL message;
-   LVAL success;
-   wxString Left = Str.BeforeLast('\n').BeforeLast('\n').ToAscii();
-   wxString Right = Str.BeforeLast('\n').AfterLast('\n').ToAscii();
-   message = cvstring(Left);
-   success = Right.EndsWith("OK") ? s_true : nullptr;
-   dst = cons(message, success);
-   return (void *)dst;
 }
 
 #include "../../commands/ScriptCommandRelay.h"

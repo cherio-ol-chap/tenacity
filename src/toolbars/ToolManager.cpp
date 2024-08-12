@@ -49,6 +49,7 @@
 #include <wx/window.h>
 #endif  /*  */
 
+#include <wx/eventfilter.h> // to inherit
 #include <wx/minifram.h>
 #include <wx/popupwin.h>
 
@@ -532,8 +533,7 @@ static struct DefaultConfigEntry {
    { ToolsBarID,             TransportBarID,         NoBarID                },
    { RecordMeterBarID,       ToolsBarID,             NoBarID                },
    { PlayMeterBarID,         RecordMeterBarID,       NoBarID                },
-   { MixerBarID,             PlayMeterBarID,         NoBarID                },
-   { EditBarID,              MixerBarID,             NoBarID                },
+   { EditBarID,              PlayMeterBarID,         NoBarID                },
 
 // DA: Transcription Toolbar not docked, by default.
 #ifdef EXPERIMENTAL_DA

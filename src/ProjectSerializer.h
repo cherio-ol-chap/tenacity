@@ -29,8 +29,8 @@ using SampleBlockID = long long;
 using NameMap = std::unordered_map<wxString, unsigned short>;
 using IdMap = std::unordered_map<unsigned short, wxString>;
 
-// This class's overrides do NOT throw AudacityException.
-class AUDACITY_DLL_API ProjectSerializer final : public XMLWriter
+// This class's overrides do NOT throw TenacityException.
+class TENACITY_DLL_API ProjectSerializer final : public XMLWriter
 {
 public:
 

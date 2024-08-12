@@ -518,13 +518,14 @@ UIHandle::Result TimeShiftHandle::Click
       // just do shifting of one whole track
    }
 
+   bool syncLocked = (event.AltDown()) ? false : ProjectSettings::Get( *pProject ).IsSyncLocked();
+
    mClipMoveState.Init( *pProject, *pTrack,
       hitTestResult,
       std::move( pShifter ),
       clickTime,
 
-      viewInfo, trackList,
-      ProjectSettings::Get( *pProject ).IsSyncLocked() );
+      viewInfo, trackList, syncLocked);
 
    mSlideUpDownOnly = event.CmdDown() && !multiToolModeActive;
    mRect = rect;
@@ -621,6 +622,10 @@ namespace {
       TrackList &trackList, Track &capturedTrack, Track &track,
       ClipMoveState &state)
    {
+      if (state.shifters.empty())
+         // Shift + Dragging hasn't yet supported vertical movement
+         return false;
+
       // Accumulate new pairs for the correspondence, and merge them
       // into the given correspondence only on success
       Correspondence newPairs;
@@ -956,6 +961,8 @@ UIHandle::Result TimeShiftHandle::Release
    if (mDidSlideVertically) {
       msg = XO("Moved clips to another track");
       consolidate = false;
+      for (auto& pair : mClipMoveState.shifters)
+         pair.first->LinkConsistencyCheck();
    }
    else {
       msg = ( mClipMoveState.hSlideAmount > 0

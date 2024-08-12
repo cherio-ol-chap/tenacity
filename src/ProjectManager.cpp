@@ -37,7 +37,6 @@ Paul Licameli split from AudacityProject.cpp
 #include "import/Import.h"
 #include "import/ImportMIDI.h"
 #include "prefs/QualitySettings.h"
-#include "toolbars/MixerToolBar.h"
 #include "toolbars/SelectionBar.h"
 #include "toolbars/SpectralSelectionBar.h"
 #include "toolbars/TimeToolBar.h"
@@ -88,11 +87,11 @@ ProjectManager::ProjectManager( AudacityProject &project )
 
 ProjectManager::~ProjectManager() = default;
 
-// PRL:  This event type definition used to be in AudacityApp.h, which created
+// PRL:  This event type definition used to be in TenacityApp.h, which created
 // a bad compilation dependency.  The event was never emitted anywhere.  I
 // preserve it and its handler here but I move it to remove the dependency.
 // Asynchronous open
-wxDECLARE_EXPORTED_EVENT(AUDACITY_DLL_API,
+wxDECLARE_EXPORTED_EVENT(TENACITY_DLL_API,
                          EVT_OPEN_AUDIO_FILE, wxCommandEvent);
 wxDEFINE_EVENT(EVT_OPEN_AUDIO_FILE, wxCommandEvent);
 
@@ -991,9 +990,7 @@ void ProjectManager::OnTimer(wxTimerEvent& WXUNUSED(event))
 {
    auto &project = mProject;
    auto &projectAudioIO = ProjectAudioIO::Get( project );
-   auto mixerToolBar = &MixerToolBar::Get( project );
-   mixerToolBar->UpdateControls();
-   
+
    auto gAudioIO = AudioIO::Get();
    // gAudioIO->GetNumCaptureChannels() should only be positive
    // when we are recording.

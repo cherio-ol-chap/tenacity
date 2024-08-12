@@ -1,6 +1,6 @@
 
 set( TARGET minsrc )
-set( TARGET_ROOT ${topdir} )
+set( TARGET_ROOT ${CMAKE_SOURCE_DIR} )
 
 message( STATUS "========== Configuring ${TARGET} ==========" )
 
@@ -46,7 +46,7 @@ list( APPEND EXCLUDES
    win
 )
 
-set( TLD "tenacity-minsrc-${AUDACITY_DIST_VERSION}${AUDACITY_SUFFIX}" )
+set( TLD "tenacity-minsrc-${GIT_DESCRIBE}" )
 set( TARBALL "${PROJECT_BINARY_DIR}/${TLD}.tar.xz" )
 
 add_custom_target( ${TARGET}

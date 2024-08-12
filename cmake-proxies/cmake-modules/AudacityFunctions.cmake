@@ -232,7 +232,7 @@ function( audacity_append_common_compiler_options var use_pch )
          -DAUDACITY_MODLEVEL=${AUDACITY_MODLEVEL}
 
          # Version string for visual display
-         -DAUDACITY_VERSION_STRING=L"${AUDACITY_VERSION}.${AUDACITY_RELEASE}.${AUDACITY_REVISION}${AUDACITY_SUFFIX}"
+         -DAUDACITY_VERSION_STRING=L"${GIT_DESCRIBE}"
 
          # This value is used in the resource compiler for Windows
          -DAUDACITY_FILE_VERSION=L"${AUDACITY_VERSION},${AUDACITY_RELEASE},${AUDACITY_REVISION},${AUDACITY_MODLEVEL}"
@@ -586,7 +586,7 @@ function( addlib dir name symbol required check )
 
    # Define target's name and it's source directory
    set( TARGET ${dir} )
-   set( TARGET_ROOT ${libsrc}/${dir} )
+   set( TARGET_ROOT ${CMAKE_SOURCE_DIR}/lib-src/${dir} )
 
    # Define the option name
    set( use ${_OPT}use_${name} )

@@ -29,7 +29,7 @@ class AButton;
 class AudacityProject;
 
 // In the GUI, ControlToolBar appears as the "Transport Toolbar". "Control Toolbar" is historic.
-class AUDACITY_DLL_API ControlToolBar final : public ToolBar {
+class TENACITY_DLL_API ControlToolBar final : public ToolBar {
 
  public:
 
@@ -99,23 +99,25 @@ class AUDACITY_DLL_API ControlToolBar final : public ToolBar {
    void ArrangeButtons();
    TranslatableString StateForStatusBar();
 
+   // Sorted in order of appearance, not alphabetically
+
    enum
    {
-      ID_PAUSE_BUTTON = 11000,
-      ID_PLAY_BUTTON,
-      ID_STOP_BUTTON,
-      ID_FF_BUTTON,
       ID_REW_BUTTON,
+      ID_FF_BUTTON,
+      ID_STOP_BUTTON,
+      ID_PLAY_BUTTON,
+      ID_PAUSE_BUTTON = 11000,
       ID_RECORD_BUTTON,
       BUTTON_COUNT,
    };
 
    AButton *mRewind;
-   AButton *mPlay;
-   AButton *mRecord;
-   AButton *mPause;
-   AButton *mStop;
    AButton *mFF;
+   AButton *mStop;
+   AButton *mPlay;
+   AButton *mPause;
+   AButton *mRecord;
 
    // Activate ergonomic order for transport buttons
    bool mErgonomicTransportButtons;

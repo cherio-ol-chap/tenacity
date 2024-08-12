@@ -876,7 +876,7 @@ AudacityProject *ProjectFileManager::OpenFile( const ProjectChooserFn &chooser,
 
    // Make sure it isn't already open.
    // Vaughan, 2011-03-25: This was done previously in AudacityProject::OpenFiles()
-   //    and AudacityApp::MRUOpen(), but if you open an aup file by double-clicking it
+   //    and TenacityApp::MRUOpen(), but if you open an aup file by double-clicking it
    //    from, e.g., Win Explorer, it would bypass those, get to here with no check,
    //    then open a NEW project from the same data with no warning.
    //    This was reported in http://bugzilla.audacityteam.org/show_bug.cgi?id=137#c17,
@@ -1113,7 +1113,7 @@ ProjectFileManager::AddImportedTracks(const FilePath &fileName,
          auto newTrack = tracks.Add( uNewTrack );
          results.push_back(newTrack->SharedPointer());
       }
-      tracks.GroupChannels(*first, nChannels);
+      tracks.MakeMultiChannelTrack(*first, nChannels, true);
    }
    newTracks.clear();
       

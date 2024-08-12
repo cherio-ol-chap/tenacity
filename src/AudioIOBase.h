@@ -26,10 +26,6 @@ Paul Licameli split from AudioIO.h
 struct PaDeviceInfo;
 typedef void PaStream;
 
-#if USE_PORTMIXER
-typedef void PxMixer;
-#endif
-
 class AudioIOBase;
 
 class AudacityProject;
@@ -118,7 +114,7 @@ struct AudioIOStartStreamOptions
 
 ///\brief A singleton object supporting queries of the state of any active
 /// audio streams, and audio device capabilities
-class AUDACITY_DLL_API AudioIOBase /* not final */
+class TENACITY_DLL_API AudioIOBase /* not final */
    : public NonInterferingBase
 {
 public:
@@ -246,14 +242,6 @@ public:
     * playing actual audio) */
    bool IsMonitoring() const;
 
-   /* Mixer services are always available.  If no stream is running, these
-    * methods use whatever device is specified by the preferences.  If a
-    * stream *is* running, naturally they manipulate the mixer associated
-    * with that stream.  If no mixer is available, output is emulated and
-    * input is stuck at 1.0f (a gain is applied to output samples).
-    */
-   void SetMixer(int inputSource);
-
 protected:
    static std::unique_ptr<AudioIOBase> ugAudioIO;
    static wxString DeviceName(const PaDeviceInfo* info);
@@ -280,22 +268,6 @@ protected:
    wxWeakRef<MeterPanelBase> mInputMeter{};
    wxWeakRef<MeterPanelBase> mOutputMeter{};
 
-   #if USE_PORTMIXER
-   PxMixer            *mPortMixer;
-   float               mPreviousHWPlaythrough;
-   #endif /* USE_PORTMIXER */
-
-   bool                mEmulateMixerOutputVol;
-   /** @brief Can we control the hardware input level?
-    *
-    * This flag is set to true if using portmixer to control the
-    * input volume seems to be working (and so we offer the user the control),
-    * and to false (locking the control out) otherwise. This avoids stupid
-    * scaled clipping problems when trying to do software emulated input volume
-    * control */
-   bool                mInputMixerWorks;
-   float               mMixerOutputVol;
-
    // For cacheing supported sample rates
    static int mCachedPlaybackIndex;
    static std::vector<long> mCachedPlaybackRates;
@@ -313,14 +285,6 @@ protected:
     * default device index.
     */
    static int getRecordDevIndex(const wxString &devName = {});
-
-   /** \brief get the index of the device selected in the preferences.
-    *
-    * If the device isn't found, returns -1
-    */
-#if USE_PORTMIXER
-   static int getRecordSourceIndex(PxMixer *portMixer);
-#endif
 
    /** \brief get the index of the supplied (named) playback device, or the
     * device selected in the preferences if none given.
@@ -344,11 +308,11 @@ protected:
 
 #include "Prefs.h"
 
-extern AUDACITY_DLL_API StringSetting AudioIOHost;
-extern AUDACITY_DLL_API DoubleSetting AudioIOLatencyCorrection;
-extern AUDACITY_DLL_API DoubleSetting AudioIOLatencyDuration;
-extern AUDACITY_DLL_API StringSetting AudioIOPlaybackDevice;
-extern AUDACITY_DLL_API IntSetting    AudioIORecordChannels;
-extern AUDACITY_DLL_API StringSetting AudioIORecordingDevice;
-extern AUDACITY_DLL_API StringSetting AudioIORecordingSource;
-extern AUDACITY_DLL_API IntSetting    AudioIORecordingSourceIndex;
+extern TENACITY_DLL_API StringSetting AudioIOHost;
+extern TENACITY_DLL_API DoubleSetting AudioIOLatencyCorrection;
+extern TENACITY_DLL_API DoubleSetting AudioIOLatencyDuration;
+extern TENACITY_DLL_API StringSetting AudioIOPlaybackDevice;
+extern TENACITY_DLL_API IntSetting    AudioIORecordChannels;
+extern TENACITY_DLL_API StringSetting AudioIORecordingDevice;
+extern TENACITY_DLL_API StringSetting AudioIORecordingSource;
+extern TENACITY_DLL_API IntSetting    AudioIORecordingSourceIndex;

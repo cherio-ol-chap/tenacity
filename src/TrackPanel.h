@@ -31,6 +31,9 @@
 
 class wxRect;
 
+// All cells of the TrackPanel are subclasses of this
+class CommonTrackPanelCell;
+
 class SpectrumAnalyst;
 class Track;
 class TrackList;
@@ -57,7 +60,7 @@ enum {
 
 const int DragThreshold = 3;// Anything over 3 pixels is a drag, else a click.
 
-class AUDACITY_DLL_API TrackPanel final
+class TENACITY_DLL_API TrackPanel final
    : public CellularPanel
    , public NonKeystrokeInterceptingWindow
    , private PrefsListener
@@ -135,9 +138,26 @@ protected:
 public:
    void MakeParentRedrawScrollbars();
 
-   // Rectangle includes track control panel, and the vertical ruler, and
-   // the proper track area of all channels, and the separators between them.
+   /*!
+    @return includes track control panel, and the vertical ruler, and
+    the proper track area of all channels, and the separators between them.
+    If target is nullptr, returns empty rectangle.
+   */
    wxRect FindTrackRect( const Track * target );
+
+   /*!
+    @return includes what's in `FindTrackRect(target)` and the focus ring
+    area around it.
+    If target is nullptr, returns empty rectangle.
+   */
+   wxRect FindFocusedTrackRect( const Track * target );
+
+   /*!
+    @return extents of the vertical rulers of one channel, top to bottom.
+    (There may be multiple sub-views, each with a ruler.)
+    If target is nullptr, returns an empty vector.
+    */
+   std::vector<wxRect> FindRulerRects( const Track * target );
 
 protected:
    // Get the root object defining a recursive subdivision of the panel's
@@ -160,8 +180,8 @@ public:
    // Set the object that performs catch-all event handling when the pointer
    // is not in any track or ruler or control panel.
    void SetBackgroundCell
-      (const std::shared_ptr< TrackPanelCell > &pCell);
-   std::shared_ptr< TrackPanelCell > GetBackgroundCell();
+      (const std::shared_ptr< CommonTrackPanelCell > &pCell);
+   std::shared_ptr< CommonTrackPanelCell > GetBackgroundCell();
 
 public:
 
@@ -174,7 +194,7 @@ protected:
 
    std::unique_ptr<TrackArtist> mTrackArtist;
 
-   class AUDACITY_DLL_API AudacityTimer final : public wxTimer {
+   class TENACITY_DLL_API AudacityTimer final : public wxTimer {
    public:
      void Notify() override{
        // (From Debian)
@@ -201,7 +221,7 @@ protected:
 
  protected:
 
-   std::shared_ptr<TrackPanelCell> mpBackground;
+   std::shared_ptr<CommonTrackPanelCell> mpBackground;
 
    DECLARE_EVENT_TABLE()
 
@@ -213,7 +233,7 @@ protected:
 };
 
 // A predicate class
-struct AUDACITY_DLL_API IsVisibleTrack
+struct TENACITY_DLL_API IsVisibleTrack
 {
    IsVisibleTrack(AudacityProject *project);
 

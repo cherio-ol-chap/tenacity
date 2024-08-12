@@ -65,7 +65,7 @@ using Regions = std::vector < Region >;
 
 class Envelope;
 
-class AUDACITY_DLL_API WaveTrack final : public PlayableTrack {
+class TENACITY_DLL_API WaveTrack final : public PlayableTrack {
 public:
 
    //
@@ -99,6 +99,8 @@ private:
    virtual ChannelType GetChannelIgnoringPan() const;
    ChannelType GetChannel() const override;
    virtual void SetPanFromChannelType() override;
+
+   bool LinkConsistencyCheck() override;
 
    /** @brief Get the time at which the first clip in the track starts
     *
@@ -622,7 +624,7 @@ private:
 //! A short-lived object, during whose lifetime, the contents of the WaveTrack are assumed not to change.
 /*! It can replace repeated calls to WaveTrack::Get() (each of which opens and closes at least one block).
  */
-class AUDACITY_DLL_API WaveTrackCache {
+class TENACITY_DLL_API WaveTrackCache {
 public:
    WaveTrackCache()
       : mBufferSize(0)
@@ -695,7 +697,7 @@ void VisitBlocks(TrackList &tracks, BlockVisitor visitor,
 void InspectBlocks(const TrackList &tracks, BlockInspector inspector,
    SampleBlockIDSet *pIDs = nullptr);
 
-class AUDACITY_DLL_API WaveTrackFactory final
+class TENACITY_DLL_API WaveTrackFactory final
    : public ClientData::Base
 {
  public:

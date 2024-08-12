@@ -35,6 +35,7 @@ from the project that will own the track.
 #include <wx/defs.h>
 #include <wx/intl.h>
 #include <wx/debug.h>
+#include <wx/log.h>
 
 #include <float.h>
 #include <math.h>
@@ -63,6 +64,33 @@ from the project that will own the track.
 #include "tracks/ui/TrackControls.h"
 
 using std::max;
+
+namespace {
+
+bool AreAligned(const WaveClipPointers& a, const WaveClipPointers& b)
+{
+   if (a.size() != b.size())
+      return false;
+
+   const auto compare = [](const WaveClip* a, const WaveClip* b) {
+      return a->GetStartTime() == b->GetStartTime() &&
+         a->GetNumSamples() == b->GetNumSamples();
+   };
+
+   return std::mismatch(a.begin(), a.end(), b.begin(), compare).first == a.end();
+}
+
+//Handles possible future file values
+Track::LinkType ToLinkType(int value)
+{
+   if (value < 0)
+      return Track::LinkType::None;
+   else if (value > 3)
+      return Track::LinkType::Group;
+   return static_cast<Track::LinkType>(value);
+}
+
+}
 
 static ProjectFileIORegistry::Entry registerFactory{
    wxT( "wavetrack" ),
@@ -240,7 +268,39 @@ void WaveTrack::SetPanFromChannelType()
       SetPan( -1.0f );
    else if( mChannel == Track::RightChannel )
       SetPan( 1.0f );
-};
+}
+
+bool WaveTrack::LinkConsistencyCheck()
+{
+   auto err = PlayableTrack::LinkConsistencyCheck();
+
+   auto linkType = GetLinkType();
+   if (static_cast<int>(linkType) == 1 || //Comes from old audacity version
+       linkType == LinkType::Aligned) 
+   {
+      auto next = dynamic_cast<WaveTrack*>(*std::next(GetOwner()->Find(this)));
+      if (next == nullptr)
+      {
+         //next track is not a wave track, fix and report error
+          wxLogWarning(
+             wxT("Right track %s is expected to be a WaveTrack.\n Removing link from left wave track %s."),
+             next->GetName(), GetName());
+         SetLinkType(LinkType::None);
+         SetChannel(MonoChannel);
+         err = true;
+      }
+      else
+      {
+         auto newLinkType = AreAligned(SortedClipArray(), next->SortedClipArray())
+            ? LinkType::Aligned : LinkType::Group;
+         //not an error
+         if (newLinkType != linkType)
+            SetLinkType(newLinkType);
+      }
+   }
+   return !err;
+}
+
 
 void WaveTrack::SetLastScaleType() const
 {
@@ -743,7 +803,7 @@ void WaveTrack::SetWaveformSettings(std::unique_ptr<WaveformSettings> &&pSetting
 // be pasted with visible split lines.  Normally, effects do not
 // want these extra lines, so they may be merged out.
 //
-/*! @excsafety{Weak} -- This WaveTrack remains destructible in case of AudacityException.
+/*! @excsafety{Weak} -- This WaveTrack remains destructible in case of TenacityException.
 But some of its cutline clips may have been destroyed. */
 void WaveTrack::ClearAndPaste(double t0, // Start of time to clear
                               double t1, // End of time to clear
@@ -1667,7 +1727,7 @@ bool WaveTrack::HandleXMLTag(const wxChar *tag, const wxChar **attrs)
          }
          else if (!wxStrcmp(attr, wxT("linked")) &&
                   XMLValueChecker::IsGoodInt(strValue) && strValue.ToLong(&nValue))
-            SetLinked(nValue != 0);
+            SetLinkType(ToLinkType(nValue));
          else if (!wxStrcmp(attr, wxT("colorindex")) &&
                   XMLValueChecker::IsGoodString(strValue) &&
                   strValue.ToLong(&nValue))
@@ -1734,7 +1794,7 @@ void WaveTrack::WriteXML(XMLWriter &xmlFile) const
    xmlFile.StartTag(wxT("wavetrack"));
    this->Track::WriteCommonXMLAttributes( xmlFile );
    xmlFile.WriteAttr(wxT("channel"), mChannel);
-   xmlFile.WriteAttr(wxT("linked"), mLinked);
+   xmlFile.WriteAttr(wxT("linked"), static_cast<int>(GetLinkType()));
    this->PlayableTrack::WriteXMLAttributes(xmlFile);
    xmlFile.WriteAttr(wxT("rate"), mRate);
    xmlFile.WriteAttr(wxT("gain"), (double)mGain);
@@ -1767,7 +1827,7 @@ bool WaveTrack::CloseLock()
    return true;
 }
 
-AUDACITY_DLL_API sampleCount WaveTrack::TimeToLongSamples(double t0) const
+TENACITY_DLL_API sampleCount WaveTrack::TimeToLongSamples(double t0) const
 {
    return sampleCount( floor(t0 * mRate + 0.5) );
 }

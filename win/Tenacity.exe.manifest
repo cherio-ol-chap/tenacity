@@ -11,7 +11,7 @@
       <dpiAwareness>PerMonitorV2, unaware</dpiAwareness>
     </asmv3:windowsSettings>
   </asmv3:application>
-  <description>Tenacity Cross-Platform Sound Editor</description>
+  <description>Tenacity Audio Editor</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
       <requestedPrivileges>

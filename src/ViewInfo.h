@@ -33,12 +33,12 @@ struct SelectedRegionEvent : public wxEvent
 };
 
 // To do:  distinguish time changes from frequency changes perhaps?
-wxDECLARE_EXPORTED_EVENT( AUDACITY_DLL_API,
+wxDECLARE_EXPORTED_EVENT( TENACITY_DLL_API,
                           EVT_SELECTED_REGION_CHANGE, SelectedRegionEvent );
 
 // This heavyweight wrapper of the SelectedRegion structure emits events
 // on mutating operations, that other classes can listen for.
-class AUDACITY_DLL_API NotifyingSelectedRegion : public wxEvtHandler
+class TENACITY_DLL_API NotifyingSelectedRegion : public wxEvtHandler
 {
 public:
    // Expose SelectedRegion's const accessors
@@ -98,14 +98,8 @@ private:
    SelectedRegion mRegion;
 };
 
-// See big pictorial comment in TrackPanel.cpp for explanation of these numbers
 enum : int {
-   // constants related to y coordinates in the track panel
-   kAffordancesAreaHeight = 20,
-   kTopInset = 4,
-   kTopMargin = kTopInset + kBorderThickness,
-   kBottomMargin = kShadowThickness + kBorderThickness,
-   kSeparatorThickness = kBottomMargin + kTopMargin,
+   kVerticalPadding = 6, /*!< Width of padding below each channel group */
 };
 
 enum : int {
@@ -168,7 +162,7 @@ private:
    bool mLocked{ false };
 };
 
-class AUDACITY_DLL_API ViewInfo final
+class TENACITY_DLL_API ViewInfo final
    : public wxEvtHandler, public ZoomInfo
 {
 public:

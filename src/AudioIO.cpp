@@ -438,10 +438,6 @@ time warp info and AudioIOListener and whether the playback is looped.
 
 #include "portaudio.h"
 
-#if USE_PORTMIXER
-#include "portmixer.h"
-#endif
-
 #include <wx/app.h>
 #include <wx/frame.h>
 #include <wx/wxcrtvararg.h>
@@ -464,6 +460,7 @@ time warp info and AudioIOListener and whether the playback is looped.
 #include "DBConnection.h"
 #include "ProjectFileIO.h"
 #include "WaveTrack.h"
+#include "AudioIOBufferHelper.h"
 
 #include "effects/RealtimeEffectManager.h"
 #include "prefs/QualitySettings.h"
@@ -492,11 +489,6 @@ time warp info and AudioIOListener and whether the playback is looped.
 //   #include "../lib-src/portmidi/pm_common/portmidi.h"
    #include "../lib-src/portaudio-v19/src/common/pa_util.h"
    #include "NoteTrack.h"
-#endif
-
-#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
-   #define LOWER_BOUND 0.0
-   #define UPPER_BOUND 1.0
 #endif
 
 using std::max;
@@ -986,9 +978,6 @@ AudioIO::AudioIO()
    mNumPauseFrames = 0;
 #endif
 
-#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
-   mAILAActive = false;
-#endif
    mStreamToken = 0;
 
    mLastPaError = paNoError;
@@ -1056,16 +1045,6 @@ AudioIO::AudioIO()
    mThread = std::make_unique<AudioThread>();
    mThread->Create();
 
-#if defined(USE_PORTMIXER)
-   mPortMixer = NULL;
-   mPreviousHWPlaythrough = -1.0;
-   HandleDeviceChange();
-#else
-   mEmulateMixerOutputVol = true;
-   mMixerOutputVol = 1.0;
-   mInputMixerWorks = false;
-#endif
-
    mLastPlaybackTimeMillis = 0;
 
 #ifdef EXPERIMENTAL_SCRUBBING_SUPPORT
@@ -1077,17 +1056,6 @@ AudioIO::AudioIO()
 
 AudioIO::~AudioIO()
 {
-#if defined(USE_PORTMIXER)
-   if (mPortMixer) {
-      #if __WXMAC__
-      if (Px_SupportsPlaythrough(mPortMixer) && mPreviousHWPlaythrough >= 0.0)
-         Px_SetPlaythrough(mPortMixer, mPreviousHWPlaythrough);
-         mPreviousHWPlaythrough = -1.0;
-      #endif
-      Px_CloseMixer(mPortMixer);
-      mPortMixer = NULL;
-   }
-#endif
 
    // FIXME: ? TRAP_ERR.  Pa_Terminate probably OK if err without reporting.
    Pa_Terminate();
@@ -1113,96 +1081,6 @@ AudioIO::~AudioIO()
 
    mThread->Delete();
    mThread.reset();
-}
-
-void AudioIO::SetMixer(int inputSource, float recordVolume,
-                       float playbackVolume)
-{
-   mMixerOutputVol = playbackVolume;
-#if defined(USE_PORTMIXER)
-   PxMixer *mixer = mPortMixer;
-   if( !mixer )
-      return;
-
-   float oldRecordVolume = Px_GetInputVolume(mixer);
-   float oldPlaybackVolume = Px_GetPCMOutputVolume(mixer);
-
-   AudioIoCallback::SetMixer(inputSource);
-   if( oldRecordVolume != recordVolume )
-      Px_SetInputVolume(mixer, recordVolume);
-   if( oldPlaybackVolume != playbackVolume )
-      Px_SetPCMOutputVolume(mixer, playbackVolume);
-
-#endif
-}
-
-void AudioIO::GetMixer(int *recordDevice, float *recordVolume,
-                       float *playbackVolume)
-{
-#if defined(USE_PORTMIXER)
-
-   PxMixer *mixer = mPortMixer;
-
-   if( mixer )
-   {
-      *recordDevice = Px_GetCurrentInputSource(mixer);
-
-      if (mInputMixerWorks)
-         *recordVolume = Px_GetInputVolume(mixer);
-      else
-         *recordVolume = 1.0f;
-
-      if (mEmulateMixerOutputVol)
-         *playbackVolume = mMixerOutputVol;
-      else
-         *playbackVolume = Px_GetPCMOutputVolume(mixer);
-
-      return;
-   }
-
-#endif
-
-   *recordDevice = 0;
-   *recordVolume = 1.0f;
-   *playbackVolume = mMixerOutputVol;
-}
-
-bool AudioIO::InputMixerWorks()
-{
-   return mInputMixerWorks;
-}
-
-bool AudioIO::OutputMixerEmulated()
-{
-   return mEmulateMixerOutputVol;
-}
-
-wxArrayString AudioIO::GetInputSourceNames()
-{
-#if defined(USE_PORTMIXER)
-
-   wxArrayString deviceNames;
-
-   if( mPortMixer )
-   {
-      int numSources = Px_GetNumInputSources(mPortMixer);
-      for( int source = 0; source < numSources; source++ )
-         deviceNames.push_back(wxString(wxSafeConvertMB2WX(Px_GetInputSourceName(mPortMixer, source))));
-   }
-   else
-   {
-      wxLogDebug(wxT("AudioIO::GetInputSourceNames(): PortMixer not initialised!"));
-   }
-
-   return deviceNames;
-
-#else
-
-   wxArrayString blank;
-
-   return blank;
-
-#endif
 }
 
 static PaSampleFormat AudacityToPortAudioSampleFormat(sampleFormat format)
@@ -1350,15 +1228,6 @@ bool AudioIO::StartPortAudioStream(const AudioIOStartStreamOptions &options,
 
    SetMeters();
 
-#ifdef USE_PORTMIXER
-#ifdef __WXMSW__
-   //mchinen nov 30 2010.  For some reason Pa_OpenStream resets the input volume on windows.
-   //so cache and restore after it.
-   //The actual problem is likely in portaudio's pa_win_wmme.c OpenStream().
-   float oldRecordVolume = Px_GetInputVolume(mPortMixer);
-#endif
-#endif
-
    // July 2016 (Carsten and Uwe)
    // BUG 193: Possibly tell portAudio to use 24 bit with DirectSound. 
    int  userData = 24;
@@ -1386,32 +1255,6 @@ bool AudioIO::StartPortAudioStream(const AudioIOStartStreamOptions &options,
       wxLogDebug("Attempt %u to open capture stream failed with: %d", 1 + tries, mLastPaError);
       wxMilliSleep(1000);
    }
-
-
-#if USE_PORTMIXER
-#ifdef __WXMSW__
-   Px_SetInputVolume(mPortMixer, oldRecordVolume);
-#endif
-   if (mPortStreamV19 != NULL && mLastPaError == paNoError) {
-
-      #ifdef __WXMAC__
-      if (mPortMixer) {
-         if (Px_SupportsPlaythrough(mPortMixer)) {
-            bool playthrough = false;
-
-            mPreviousHWPlaythrough = Px_GetPlaythrough(mPortMixer);
-
-            // Bug 388.  Feature not supported.
-            //gPrefs->Read(wxT("/AudioIO/Playthrough"), &playthrough, false);
-            if (playthrough)
-               Px_SetPlaythrough(mPortMixer, 1.0);
-            else
-               Px_SetPlaythrough(mPortMixer, 0.0);
-         }
-      }
-      #endif
-   }
-#endif
 
 #ifdef EXPERIMENTAL_MIDI_OUT
    // We use audio latency to estimate how far ahead of DACS we are writing
@@ -1689,10 +1532,6 @@ int AudioIO::StartStream(const TransportTracks &tracks,
          em.RealtimeAddProcessor(group++, std::min(2u, chanCnt), mRate);
       }
    }
-
-#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
-   AILASetStartTime();
-#endif
 
    if (options.pStartTime)
    {
@@ -2242,18 +2081,6 @@ void AudioIO::StopStream()
       wxMilliSleep( 50 );
    }
 
-   // Turn off HW playthrough if PortMixer is being used
-
-  #if defined(USE_PORTMIXER)
-   if( mPortMixer ) {
-      #if __WXMAC__
-      if (Px_SupportsPlaythrough(mPortMixer) && mPreviousHWPlaythrough >= 0.0)
-         Px_SetPlaythrough(mPortMixer, mPreviousHWPlaythrough);
-         mPreviousHWPlaythrough = -1.0;
-      #endif
-   }
-  #endif
-
    if (mPortStreamV19) {
       Pa_AbortStream( mPortStreamV19 );
       Pa_CloseStream( mPortStreamV19 );
@@ -2694,7 +2521,7 @@ void AudioIO::FillBuffers()
 {
    unsigned int i;
 
-   auto delayedHandler = [this] ( AudacityException * pException ) {
+   auto delayedHandler = [this] ( TenacityException * pException ) {
       // In the main thread, stop recording
       // This is one place where the application handles disk
       // exhaustion exceptions from wave track operations, without rolling
@@ -2707,7 +2534,7 @@ void AudioIO::FillBuffers()
 
       // Note that the Flush in StopStream() may throw another exception,
       // but StopStream() contains that exception, and the logic in
-      // AudacityException::DelayedHandlerAction prevents redundant message
+      // TenacityException::DelayedHandlerAction prevents redundant message
       // boxes.
       StopStream();
       DefaultDelayedHandlerAction{}( pException );
@@ -3068,7 +2895,7 @@ void AudioIO::FillBuffers()
          // end of record buffering
       },
       // handler
-      [this] ( AudacityException *pException ) {
+      [this] ( TenacityException *pException ) {
          if ( pException ) {
             // So that we don't attempt to fill the recording buffer again
             // before the main thread stops recording
@@ -3436,176 +3263,6 @@ void AudioIoCallback::AllNotesOff(bool looping)
 
 #endif
 
-// Automated Input Level Adjustment - Automatically tries to find an acceptable input volume
-#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
-
-#include "ProjectStatus.h"
-
-void AudioIO::AILAInitialize() {
-   gPrefs->Read(wxT("/AudioIO/AutomatedInputLevelAdjustment"), &mAILAActive,         false);
-   gPrefs->Read(wxT("/AudioIO/TargetPeak"),            &mAILAGoalPoint,      AILA_DEF_TARGET_PEAK);
-   gPrefs->Read(wxT("/AudioIO/DeltaPeakVolume"),       &mAILAGoalDelta,      AILA_DEF_DELTA_PEAK);
-   gPrefs->Read(wxT("/AudioIO/AnalysisTime"),          &mAILAAnalysisTime,   AILA_DEF_ANALYSIS_TIME);
-   gPrefs->Read(wxT("/AudioIO/NumberAnalysis"),        &mAILATotalAnalysis,  AILA_DEF_NUMBER_ANALYSIS);
-   mAILAGoalDelta         /= 100.0;
-   mAILAGoalPoint         /= 100.0;
-   mAILAAnalysisTime      /= 1000.0;
-   mAILAMax                = 0.0;
-   mAILALastStartTime      = max(0.0, mPlaybackSchedule.mT0);
-   mAILAClipped            = false;
-   mAILAAnalysisCounter    = 0;
-   mAILAChangeFactor       = 1.0;
-   mAILALastChangeType     = 0;
-   mAILATopLevel           = 1.0;
-   mAILAAnalysisEndTime    = -1.0;
-}
-
-void AudioIO::AILADisable() {
-   mAILAActive = false;
-}
-
-bool AudioIO::AILAIsActive() {
-   return mAILAActive;
-}
-
-void AudioIO::AILASetStartTime() {
-   mAILAAbsolutStartTime = Pa_GetStreamTime(mPortStreamV19);
-   wxPrintf("START TIME %f\n\n", mAILAAbsolutStartTime);
-}
-
-double AudioIO::AILAGetLastDecisionTime() {
-   return mAILAAnalysisEndTime;
-}
-
-void AudioIO::AILAProcess(double maxPeak) {
-   AudacityProject *const proj = mOwningProject;
-   if (proj && mAILAActive) {
-      if (mInputMeter && mInputMeter->IsClipping()) {
-         mAILAClipped = true;
-         wxPrintf("clipped");
-      }
-
-      mAILAMax = max(mAILAMax, maxPeak);
-
-      if ((mAILATotalAnalysis == 0 || mAILAAnalysisCounter < mAILATotalAnalysis) && mPlaybackSchedule.GetTrackTime() - mAILALastStartTime >= mAILAAnalysisTime) {
-         auto ToLinearIfDB = [](double value, int dbRange) {
-            if (dbRange >= 0)
-               value = pow(10.0, (-(1.0-value) * dbRange)/20.0);
-            return value;
-         };
-
-         putchar('\n');
-         mAILAMax = mInputMeter ? ToLinearIfDB(mAILAMax, mInputMeter->GetDBRange()) : 0.0;
-         double iv = (double) Px_GetInputVolume(mPortMixer);
-         unsigned short changetype = 0; //0 - no change, 1 - increase change, 2 - decrease change
-         wxPrintf("mAILAAnalysisCounter:%d\n", mAILAAnalysisCounter);
-         wxPrintf("\tmAILAClipped:%d\n", mAILAClipped);
-         wxPrintf("\tmAILAMax (linear):%f\n", mAILAMax);
-         wxPrintf("\tmAILAGoalPoint:%f\n", mAILAGoalPoint);
-         wxPrintf("\tmAILAGoalDelta:%f\n", mAILAGoalDelta);
-         wxPrintf("\tiv:%f\n", iv);
-         wxPrintf("\tmAILAChangeFactor:%f\n", mAILAChangeFactor);
-         if (mAILAClipped || mAILAMax > mAILAGoalPoint + mAILAGoalDelta) {
-            wxPrintf("too high:\n");
-            mAILATopLevel = min(mAILATopLevel, iv);
-            wxPrintf("\tmAILATopLevel:%f\n", mAILATopLevel);
-            //if clipped or too high
-            if (iv <= LOWER_BOUND) {
-               //we can't improve it more now
-               if (mAILATotalAnalysis != 0) {
-                  mAILAActive = false;
-                  ProjectStatus::Get( *proj ).Set(
-                     XO(
-"Automated Recording Level Adjustment stopped. It was not possible to optimize it more. Still too high.") );
-               }
-               wxPrintf("\talready min vol:%f\n", iv);
-            }
-            else {
-               float vol = (float) max(LOWER_BOUND, iv+(mAILAGoalPoint-mAILAMax)*mAILAChangeFactor);
-               Px_SetInputVolume(mPortMixer, vol);
-               auto msg = XO(
-"Automated Recording Level Adjustment decreased the volume to %f.").Format( vol );
-               ProjectStatus::Get( *proj ).Set(msg);
-               changetype = 1;
-               wxPrintf("\tnew vol:%f\n", vol);
-               float check = Px_GetInputVolume(mPortMixer);
-               wxPrintf("\tverified %f\n", check);
-            }
-         }
-         else if ( mAILAMax < mAILAGoalPoint - mAILAGoalDelta ) {
-            //if too low
-            wxPrintf("too low:\n");
-            if (iv >= UPPER_BOUND || iv + 0.005 > mAILATopLevel) { //condition for too low volumes and/or variable volumes that cause mAILATopLevel to decrease too much
-               //we can't improve it more
-               if (mAILATotalAnalysis != 0) {
-                  mAILAActive = false;
-                  ProjectStatus::Get( *proj ).Set(
-                     XO(
-"Automated Recording Level Adjustment stopped. It was not possible to optimize it more. Still too low.") );
-               }
-               wxPrintf("\talready max vol:%f\n", iv);
-            }
-            else {
-               float vol = (float) min(UPPER_BOUND, iv+(mAILAGoalPoint-mAILAMax)*mAILAChangeFactor);
-               if (vol > mAILATopLevel) {
-                  vol = (iv + mAILATopLevel)/2.0;
-                  wxPrintf("\tTruncated vol:%f\n", vol);
-               }
-               Px_SetInputVolume(mPortMixer, vol);
-               auto msg = XO(
-"Automated Recording Level Adjustment increased the volume to %.2f.")
-                  .Format( vol );
-               ProjectStatus::Get( *proj ).Set(msg);
-               changetype = 2;
-               wxPrintf("\tnew vol:%f\n", vol);
-               float check = Px_GetInputVolume(mPortMixer);
-               wxPrintf("\tverified %f\n", check);
-            }
-         }
-
-         mAILAAnalysisCounter++;
-         //const PaStreamInfo* info = Pa_GetStreamInfo(mPortStreamV19);
-         //double latency = 0.0;
-         //if (info)
-         //   latency = info->inputLatency;
-         //mAILAAnalysisEndTime = mTime+latency;
-         mAILAAnalysisEndTime = Pa_GetStreamTime(mPortStreamV19) - mAILAAbsolutStartTime;
-         mAILAMax             = 0;
-         wxPrintf("\tA decision was made @ %f\n", mAILAAnalysisEndTime);
-         mAILAClipped         = false;
-         mAILALastStartTime   = mPlaybackSchedule.GetTrackTime();
-
-         if (changetype == 0)
-            mAILAChangeFactor *= 0.8; //time factor
-         else if (mAILALastChangeType == changetype)
-            mAILAChangeFactor *= 1.1; //concordance factor
-         else
-            mAILAChangeFactor *= 0.7; //discordance factor
-         mAILALastChangeType = changetype;
-         putchar('\n');
-      }
-
-      if (mAILAActive && mAILATotalAnalysis != 0 && mAILAAnalysisCounter >= mAILATotalAnalysis) {
-         mAILAActive = false;
-         if (mAILAMax > mAILAGoalPoint + mAILAGoalDelta)
-            ProjectStatus::Get( *proj ).Set(
-               XO(
-"Automated Recording Level Adjustment stopped. The total number of analyses has been exceeded without finding an acceptable volume. Still too high.") );
-         else if (mAILAMax < mAILAGoalPoint - mAILAGoalDelta)
-            ProjectStatus::Get( *proj ).Set(
-               XO(
-"Automated Recording Level Adjustment stopped. The total number of analyses has been exceeded without finding an acceptable volume. Still too low.") );
-         else {
-            auto msg = XO(
-"Automated Recording Level Adjustment stopped. %.2f seems an acceptable volume.")
-               .Format( Px_GetInputVolume(mPortMixer) );
-            ProjectStatus::Get( *proj ).Set(msg);
-         }
-      }
-   }
-}
-#endif
-
 //////////////////////////////////////////////////////////////////////
 //
 //    PortAudio callback thread context
@@ -3782,9 +3439,6 @@ void AudioIoCallback::AddToOutputChannel( unsigned int chan,
          outputMeterFloats[numPlaybackChannels*i+chan] +=
             gain*tempBuf[i];
 
-   if (mEmulateMixerOutputVol)
-      gain *= mMixerOutputVol;
-
    float oldGain = vt->GetOldChannelGain(chan);
    if( gain != oldGain )
       vt->SetOldChannelGain(chan, gain);
@@ -3843,13 +3497,7 @@ bool AudioIoCallback::FillOutputBuffers(
    }
 
    // ------ MEMORY ALLOCATION ----------------------
-   // These are small structures.
-   WaveTrack **chans = (WaveTrack **) alloca(numPlaybackChannels * sizeof(WaveTrack *));
-   float **tempBufs = (float **) alloca(numPlaybackChannels * sizeof(float *));
-
-   // And these are larger structures....
-   for (unsigned int c = 0; c < numPlaybackChannels; c++)
-      tempBufs[c] = (float *) alloca(framesPerBuffer * sizeof(float));
+   std::unique_ptr<AudioIOBufferHelper> bufHelper = std::make_unique<AudioIOBufferHelper>(numPlaybackChannels, framesPerBuffer);
    // ------ End of MEMORY ALLOCATION ---------------
 
    auto & em = RealtimeEffectManager::Get();
@@ -3881,7 +3529,7 @@ bool AudioIoCallback::FillOutputBuffers(
    for (unsigned t = 0; t < numPlaybackTracks; t++)
    {
       WaveTrack *vt = mPlaybackTracks[t].get();
-      chans[chanCnt] = vt;
+      bufHelper.get()->chans[chanCnt] = vt;
 
       // TODO: more-than-two-channels
       auto nextTrack =
@@ -3900,7 +3548,7 @@ bool AudioIoCallback::FillOutputBuffers(
          // IF mono THEN clear 'the other' channel.
          if ( lastChannel && (numPlaybackChannels>1)) {
             // TODO: more-than-two-channels
-            memset(tempBufs[1], 0, framesPerBuffer * sizeof(float));
+            memset(bufHelper.get()->tempBufs[1], 0, framesPerBuffer * sizeof(float));
          }
          drop = TrackShouldBeSilent( *vt );
          dropQuickly = drop;
@@ -3919,7 +3567,7 @@ bool AudioIoCallback::FillOutputBuffers(
       }
       else
       {
-         len = mPlaybackBuffers[t]->Get((samplePtr)tempBufs[chanCnt],
+         len = mPlaybackBuffers[t]->Get((samplePtr)bufHelper.get()->tempBufs[chanCnt],
                                                    floatSample,
                                                    toGet);
          // wxASSERT( len == toGet );
@@ -3930,7 +3578,7 @@ bool AudioIoCallback::FillOutputBuffers(
             // real-time demand in this thread (see bug 1932).  We
             // must supply something to the sound card, so pad it with
             // zeroes and not random garbage.
-            memset((void*)&tempBufs[chanCnt][len], 0,
+            memset((void*)&bufHelper.get()->tempBufs[chanCnt][len], 0,
                (framesPerBuffer - len) * sizeof(float));
          chanCnt++;
       }
@@ -3951,7 +3599,7 @@ bool AudioIoCallback::FillOutputBuffers(
       len = mMaxFramesOutput;
 
       if( !dropQuickly && selected )
-         len = em.RealtimeProcess(group, chanCnt, tempBufs, len);
+         len = em.RealtimeProcess(group, chanCnt, bufHelper.get()->tempBufs, len);
       group++;
 
       CallbackCheckCompletion(mCallbackReturn, len);
@@ -3970,17 +3618,13 @@ bool AudioIoCallback::FillOutputBuffers(
       // For example mono channels output to both left and right output channels.
       if (len > 0) for (int c = 0; c < chanCnt; c++)
       {
-         vt = chans[c];
+         vt = bufHelper.get()->chans[c];
 
-         if (vt->GetChannelIgnoringPan() == Track::LeftChannel ||
-               vt->GetChannelIgnoringPan() == Track::MonoChannel )
-            AddToOutputChannel( 0, outputMeterFloats, outputFloats,
-               tempBufs[c], drop, len, vt);
+         if (vt->GetChannelIgnoringPan() == Track::LeftChannel || vt->GetChannelIgnoringPan() == Track::MonoChannel )
+            AddToOutputChannel( 0, outputMeterFloats, outputFloats, bufHelper.get()->tempBufs[c], drop, len, vt);
 
-         if (vt->GetChannelIgnoringPan() == Track::RightChannel ||
-               vt->GetChannelIgnoringPan() == Track::MonoChannel  )
-            AddToOutputChannel( 1, outputMeterFloats, outputFloats,
-               tempBufs[c], drop, len, vt);
+         if (vt->GetChannelIgnoringPan() == Track::RightChannel || vt->GetChannelIgnoringPan() == Track::MonoChannel  )
+            AddToOutputChannel( 1, outputMeterFloats, outputFloats, bufHelper.get()->tempBufs[c], drop, len, vt);
       }
 
       chanCnt = 0;
@@ -4392,14 +4036,7 @@ int AudioIoCallback::AudioCallback(const void *inputBuffer, void *outputBuffer,
    float *tempFloats = (float *)alloca(framesPerBuffer*sizeof(float)*
                              MAX(numCaptureChannels,numPlaybackChannels));
 
-   bool bVolEmulationActive = 
-      (outputBuffer && mEmulateMixerOutputVol &&  mMixerOutputVol != 1.0);
-   // outputMeterFloats is the scratch pad for the output meter.  
-   // we can often reuse the existing outputBuffer and save on allocating 
-   // something new.
-   float *outputMeterFloats = bVolEmulationActive ?
-         (float *)alloca(framesPerBuffer*numPlaybackChannels * sizeof(float)) :
-         (float *)outputBuffer;
+   float *outputMeterFloats = (float *)outputBuffer;
    // ----- END of MEMORY ALLOCATIONS ------------------------------------------
 
    if (inputBuffer && numCaptureChannels) {

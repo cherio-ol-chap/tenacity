@@ -199,7 +199,7 @@ static const unsigned char HiContrastImageCacheAsData[] = {
 };
 
 // theTheme is a global variable.
-AUDACITY_DLL_API Theme theTheme;
+TENACITY_DLL_API Theme theTheme;
 
 Theme::Theme(void)
 {
@@ -353,18 +353,12 @@ void ThemeBase::RecolourTheme()
 #else
    wxColour To = wxSystemSettings::GetColour( wxSYS_COLOUR_3DFACE );
 #endif
-   // only recolour if recolouring is slight.
-   int d = ColourDistance( From, To );
 
    // Don't recolour if difference is too big.
+   int d = ColourDistance( From, To );
    if( d  > 120 )
       return;
 
-   // A minor tint difference from standard does not need 
-   // to be recouloured either.  Includes case of d==0 which is nothing
-   // needs to be done.
-   if( d < 40 )
-      return;
 
    Colour( clrMedium ) = To;
    RecolourBitmap( bmpUpButtonLarge, From, To );
@@ -375,7 +369,6 @@ void ThemeBase::RecolourTheme()
    RecolourBitmap( bmpHiliteButtonSmall, From, To );
 
    Colour( clrTrackInfo ) = To;
-   RecolourBitmap( bmpUpButtonExpand, From, To );
 }
 
 wxImage ThemeBase::MaskedImage( char const ** pXpm, char const ** pMask )

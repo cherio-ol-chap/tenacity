@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <mutex>
 #include <wx/ustring.h>
+#include <cstring>
 
 ///
 /// ProjectSerializer class
@@ -389,7 +390,7 @@ wxString ProjectSerializer::Decode(const wxMemoryBuffer &buffer)
 
    XMLStringWriter out;
 
-   std::vector<char> bytes;
+   std::vector<char> bytes_vector;
    IdMap mIds;
    std::vector<IdMap> mIdStack;
    char mCharSize = 0;
@@ -407,35 +408,39 @@ wxString ProjectSerializer::Decode(const wxMemoryBuffer &buffer)
       return iter->second;
    };
 
-   auto ReadString = [&mCharSize, &in, &bytes](int len) -> wxString
+   auto ReadString = [&mCharSize, &in, &bytes_vector](size_t len) -> wxString
    {
-      bytes.reserve( len + 4 );
-      auto data = bytes.data();
-      in.Read( data, len );
-      // Make a null terminator of the widest type
-      memset( data + len, '\0', 4 );
-      wxUString str;
-      
-      switch (mCharSize)
-      {
-         case 1:
-            str.assignFromUTF8(data, len);
-         break;
+       bytes_vector.reserve(len);
+       bytes_vector.resize(len);
 
-         case 2:
-            str.assignFromUTF16((wxChar16 *) data, len / 2);
-         break;
+      //Read the input memory into the internal array of the vector
+      in.Read( bytes_vector.data(), len);
 
-         case 4:
-            str = wxU32CharBuffer::CreateNonOwned((wxChar32 *) data, len / 4);
-         break;
-
-         default:
-            wxASSERT_MSG(false, wxT("Characters size not 1, 2, or 4"));
-         break;
+      switch (mCharSize) {
+          case 1:
+              {
+                  wxASSERT(sizeof(decltype(*bytes_vector.data())) == sizeof(char));
+                  // The void* silences the CodeQL CWE-704 detection
+                  return wxUString().assignFromUTF8(bytes_vector.data(), len);
+              }
+          case 2:
+              {
+                  wxASSERT(sizeof(wxChar16) == 2 * sizeof(char));
+                  std::vector<wxChar16> converted_data_16(len / 2);
+                  std::memcpy(converted_data_16.data(), bytes_vector.data(), len);
+                  return wxUString().assignFromUTF16(converted_data_16.data(), converted_data_16.size());
+              }
+          case 4:
+              {
+                  wxASSERT(sizeof(wxChar32) == 4 * sizeof(char));
+                  std::vector<wxChar32> converted_data_32(len / 4);
+                  std::memcpy(converted_data_32.data(), bytes_vector.data(), len);
+                  return wxUString().assign(converted_data_32.data(), converted_data_32.size());
+              }
+          default:
+              wxASSERT_MSG(false, wxT("Characters size not 1, 2, or 4"));
+              return wxUString();
       }
-
-      return str;
    };
 
    try
@@ -588,7 +593,7 @@ wxString ProjectSerializer::Decode(const wxMemoryBuffer &buffer)
          }
       }
    }
-   catch( const Error& )
+   catch( const Error& e)
    {
       // Document was corrupt, or platform differences in size or endianness
       // were not well canonicalized

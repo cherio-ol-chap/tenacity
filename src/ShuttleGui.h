@@ -28,6 +28,8 @@
 class ChoiceSetting;
 
 class wxArrayStringEx;
+class Plot;
+class SliderTextCtrl;
 
 
 const int nMaxNestedSizers = 20;
@@ -237,7 +239,7 @@ struct Item {
 
 }
 
-class AUDACITY_DLL_API ShuttleGuiBase /* not final */
+class TENACITY_DLL_API ShuttleGuiBase /* not final */
 {
 public:
    ShuttleGuiBase(
@@ -262,6 +264,10 @@ public:
    wxSpinCtrl * AddSpinCtrl(const TranslatableString &Prompt,
       int Value, int Max, int Min);
    wxTreeCtrl * AddTree();
+
+   SliderTextCtrl* AddSliderTextCtrl(
+      const TranslatableString &Prompt, double pos, double Max, double Min = 0,
+      int precision = 2, double* value = NULL, double scale = 0, double offset = 0);
 
    // Pass the same initValue to the sequence of calls to AddRadioButton and
    // AddRadioButtonToGroup.
@@ -342,6 +348,11 @@ public:
       const TranslatableString & Str, bool bCenter = false, int wrapWidth = 0 );
    void AddConstTextBox(
       const TranslatableString &Caption, const TranslatableString & Value );
+
+   Plot* AddPlot( const TranslatableString &Prompt,
+      double x_min, double x_max, double y_min, double y_max,
+      const TranslatableString& x_label, const TranslatableString& y_label,
+      int x_format = 1, int y_format = 1, int count = 1 );
 
 //-- Start and end functions.  These are used for sizer, or other window containers
 //   and create the appropriate widget.
@@ -629,12 +640,12 @@ enum
     GROWING_PROPORTION = 1
 };
 
-AUDACITY_DLL_API std::unique_ptr<wxSizer> CreateStdButtonSizer( wxWindow *parent,
+TENACITY_DLL_API std::unique_ptr<wxSizer> CreateStdButtonSizer( wxWindow *parent,
                                long buttons = eOkButton | eCancelButton,
                                wxWindow *extra = NULL );
 
 // ShuttleGui extends ShuttleGuiBase with Audacity specific extensions.
-class AUDACITY_DLL_API ShuttleGui /* not final */ : public ShuttleGuiBase
+class TENACITY_DLL_API ShuttleGui /* not final */ : public ShuttleGuiBase
 {
 public:
    ShuttleGui(
@@ -762,10 +773,10 @@ public:
 class ComponentInterfaceSymbol;
 
 //! Convenience function often useful when adding choice controls
-AUDACITY_DLL_API TranslatableStrings Msgids(
+TENACITY_DLL_API TranslatableStrings Msgids(
    const EnumValueSymbol strings[], size_t nStrings);
 
 //! Convenience function often useful when adding choice controls
-AUDACITY_DLL_API TranslatableStrings Msgids( const std::vector<EnumValueSymbol> &strings );
+TENACITY_DLL_API TranslatableStrings Msgids( const std::vector<EnumValueSymbol> &strings );
 
 #endif

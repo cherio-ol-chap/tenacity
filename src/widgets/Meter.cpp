@@ -471,6 +471,16 @@ void MeterPanel::OnErase(wxEraseEvent & WXUNUSED(event))
    // Ignore it to prevent flashing
 }
 
+static double GetColourLuminance(wxColour color)
+{
+#if wxCHECK_VERSION(3, 1, 3)
+    return color.GetLuminance();
+#else
+    // Standard RGB to YIQ conversion for the luma (Y) part, used also by wx3.1
+    return (0.299*color.Red() + 0.587*color.Green() + 0.114*color.Blue()) / 255.0;
+#endif
+}
+
 void MeterPanel::OnPaint(wxPaintEvent & WXUNUSED(event))
 {
 #if defined(__WXMAC__)
@@ -533,13 +543,13 @@ void MeterPanel::OnPaint(wxPaintEvent & WXUNUSED(event))
       // Bug #2473 - (Sort of) Hack to make text on meters more
       // visible with darker backgrounds. It would be better to have
       // different colors entirely and as part of the theme.
-      if (GetBackgroundColour().GetLuminance() < 0.25)
+      if (GetColourLuminance(GetBackgroundColour()) < 0.25)
       {
          green = wxColor(117-100, 215-100, 112-100);
          yellow = wxColor(255-100, 255-100, 0);
          red = wxColor(255-100, 0, 0);
       }
-      else if (GetBackgroundColour().GetLuminance() < 0.50)
+      else if (GetColourLuminance(GetBackgroundColour()) < 0.50)
       {
          green = wxColor(117-50, 215-50, 112-50);
          yellow = wxColor(255-50, 255-50, 0);
@@ -1071,10 +1081,6 @@ void MeterPanel::OnMeterUpdate(wxTimerEvent & WXUNUSED(event))
 {
    MeterUpdateMsg msg;
    int numChanges = 0;
-#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
-   double maxPeak = 0.0;
-   bool discarded = false;
-#endif
 
    // We shouldn't receive any events if the meter is disabled, but clear it to be safe
    if (mMeterDisabled) {
@@ -1140,27 +1146,10 @@ void MeterPanel::OnMeterUpdate(wxTimerEvent & WXUNUSED(event))
          }
 
          mBar[j].tailPeakCount = msg.tailPeakCount[j];
-#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
-         if (mT > gAudioIO->AILAGetLastDecisionTime()) {
-            discarded = false;
-            maxPeak = msg.peak[j] > maxPeak ? msg.peak[j] : maxPeak;
-            wxPrintf("%f@%f ", msg.peak[j], mT);
-         }
-         else {
-            discarded = true;
-            wxPrintf("%f@%f discarded\n", msg.peak[j], mT);
-         }
-#endif
       }
    } // while
 
    if (numChanges > 0) {
-      #ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
-         if (gAudioIO->AILAIsActive() && mIsInput && !discarded) {
-            gAudioIO->AILAProcess(maxPeak);
-            putchar('\n');
-         }
-      #endif
       RepaintBarsNow();
    }
 }
